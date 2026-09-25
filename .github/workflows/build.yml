@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    paths:
+      - 'ASA_Dashboard_Android_v*_MobileBuild.zip'
+      - '.github/workflows/build.yml'
 
 jobs:
   build:
@@ -23,22 +26,30 @@ jobs:
         with:
           gradle-version: '8.10.2'
 
-      - name: Extract Android project from ZIP
+      - name: Select latest Android package
         shell: bash
         run: |
-          ZIP_FILE=$(find . -maxdepth 1 -type f -name '*.zip' | head -n 1)
+          ZIP_FILE=$(find . -maxdepth 1 -type f -name 'ASA_Dashboard_Android_v*_MobileBuild.zip' | sort -V | tail -n 1)
           if [ -z "$ZIP_FILE" ]; then
-            echo "No ZIP file found in repository root"
+            echo "No ASA Android MobileBuild ZIP found"
             exit 1
           fi
-          mkdir -p extracted
-          unzip -q "$ZIP_FILE" -d extracted
-          PROJECT_DIR=$(dirname "$(find extracted -name settings.gradle -type f | head -n 1)")
+          echo "ANDROID_ZIP=$ZIP_FILE" >> "$GITHUB_ENV"
+          echo "Using: $ZIP_FILE"
+
+      - name: Extract Android project
+        shell: bash
+        run: |
+          rm -rf extracted-android
+          mkdir -p extracted-android
+          unzip -q "$ANDROID_ZIP" -d extracted-android
+          PROJECT_DIR=$(dirname "$(find extracted-android -name settings.gradle -type f | head -n 1)")
           if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/settings.gradle" ]; then
             echo "Android project not found inside ZIP"
             exit 1
           fi
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project: $PROJECT_DIR"
 
       - name: Build Debug APK
         shell: bash
@@ -50,10 +61,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p apk
-          cp "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" apk/ASA-Dashboard.apk
+          cp "$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" apk/ASA-Dashboard-v0.3.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ASA-Dashboard-APK
-          path: apk/ASA-Dashboard.apk
+          name: ASA-Dashboard-Android-v0.3
+          path: apk/ASA-Dashboard-v0.3.apk
